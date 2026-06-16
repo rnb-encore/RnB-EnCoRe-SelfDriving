@@ -1,0 +1,32 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# ---- Datasets (hosted separately, e.g. on a HuggingFace dataset) ----
+# Planner inputs + generated fine-tuning data live here and are downloaded separately.
+Agent-Driver/data/
+
+# ---- Model checkpoints & training artifacts ----
+checkpoints/
+**/checkpoints/
+wandb/
+**/wandb/
+
+# ---- Run outputs / logs ----
+results/
+**/results/
+logs/
+**/logs/
+evaluation_logs/
+**/evaluation_logs/
+experiments/
+**/experiments/
+*.out
+*.err
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store

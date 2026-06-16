@@ -1,0 +1,12 @@
+# output files
+**/**/logs/*
+**/**/checkpoints/*
+**/**/results/*
+**/**/wandb/*
+
+# pycache files
+**/__pycache__/*
+**/*.pyc
+
+# log files
+*.txt
