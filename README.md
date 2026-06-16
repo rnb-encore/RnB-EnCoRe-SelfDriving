@@ -1,32 +1,74 @@
-# Self-Supervised Bootstrapping of Action-Predictive Embodied Reasoning — Self-Driving Experiments
+# R&B-EnCoRe for Self-Driving Trajectory Planning
 
-This repository contains the **self-driving (autonomous vehicle) experiments** for the paper
-[*Self-Supervised Bootstrapping of Action-Predictive Embodied Reasoning*](https://arxiv.org/abs/2602.08167)
-(R&B-EnCoRe; Ganai, Luo, Frey, Barrett, and Pavone).
+## Self-Refining and Bootstrapping from Action-Predictive Embodied Reasoning for Autonomous Vehicle Trajectory Planning on nuScenes using Qwen3-VL
 
-It provides the code for training and evaluating a vision-language model (Qwen3-VL) as an
-end-to-end trajectory planner on the [nuScenes](https://www.nuscenes.org/) benchmark. The
-model takes a front-camera image plus ego state and produces a 3-second planned trajectory
-(6 waypoints at 0.5 s intervals), optionally accompanied by intermediate reasoning
-(perception, common-sense, experience, and chain-of-thought).
+[![arXiv](https://img.shields.io/badge/arXiv-2602.08167-b31b1b.svg)](https://arxiv.org/abs/2602.08167)
 
-The project combines two upstream codebases:
+This repository implements **R&B-EnCoRe**, a self-refining and bootstrapping pipeline that learns *which* reasoning actually helps a **Qwen3-VL** vision-language model produce better autonomous-vehicle trajectories on the [nuScenes](https://www.nuscenes.org/) benchmark. The model takes a front-camera image plus ego state and produces a 3-second planned trajectory (6 waypoints at 0.5 s intervals), optionally accompanied by intermediate reasoning (perception, common-sense, experience, and chain-of-thought).
+
+The core idea: instead of hand-picking what a model should "reason about" before acting, we generate many candidate reasoning traces, score how much each one improves the likelihood of the correct trajectory (via an ELBO importance weight against a prior), resample toward the useful reasoning, and bootstrap a stronger model on the refined data.
+
+This release combines two upstream codebases:
 
 | Subdirectory   | Role | Upstream |
 |----------------|------|----------|
 | [`Qwen3-VL/`](Qwen3-VL/)       | VLM fine-tuning, vLLM inference, and R&B-EnCoRe sampling | [QwenLM/Qwen3-VL](https://github.com/QwenLM/Qwen3-VL) |
 | [`Agent-Driver/`](Agent-Driver/) | Driving data generation, trajectory parsing, and nuScenes (UniAD / STP3) evaluation | [Agent-Driver](https://github.com/USC-GVL/Agent-Driver) |
 
-Beyond plain supervised fine-tuning, the repository implements the **R&B-EnCoRe**
-self-training loop: the model generates candidate reasoning traces for
-each training example, those traces are re-weighted by an ELBO importance weight, and the
-best traces are folded back into the next round of fine-tuning.
+The codebase covers:
+1.  **Data Generation** (`Agent-Driver`): Building conversation-format fine-tuning data from Agent-Driver planner inputs — single-trace SFT data and R&B-EnCoRe iteration-0 data (prior + posterior reasoning traces).
+2.  **Supervised Fine-Tuning** (`Qwen3-VL`): Training Qwen3-VL as an end-to-end trajectory planner — a trajectory-only baseline and an iteration-0 model that produces latent reasoning + trajectory.
+3.  **Refining (R&B-EnCoRe)**: Sampling posterior reasoning traces from the iteration-0 model, scoring them with ELBO importance weights, and resampling toward the reasoning that helps.
+4.  **Bootstrapping**: Retraining (iteration 1) on the refined reasoning to produce the final model.
+5.  **Inference & Evaluation**: Running vLLM inference, parsing trajectories, and computing nuScenes planning metrics (UniAD / STP3 L2 + collision).
 
 > **Note on paths.** Absolute cluster paths have been replaced with placeholders such as
 > `/path/to/Agent-Driver`, `/path/to/Qwen3-VL`, `/path/to/nuscenes`, and
 > `/path/to/conda/envs/<env>`. Update these to your environment before running. The training
 > SLURM scripts (`qwen-vl-finetune/scripts/*.sh`) and `qwenvl/data/__init__.py` are the main
 > places that reference data and checkpoint locations.
+
+---
+
+## Setup
+
+### 1. Environments
+
+The scripts reference several conda environments; create them to match your cluster:
+
+- **Training** (`qwen3-vl-new`): PyTorch, `transformers`, DeepSpeed, and the
+  Qwen3-VL fine-tuning dependencies in [`Qwen3-VL/qwen-vl-finetune`](Qwen3-VL/qwen-vl-finetune).
+- **Inference / R&B-EnCoRe sampling** (`qwen3_serve_new`): `vllm` plus the Qwen3-VL
+  multimodal processor stack.
+- **Evaluation** (`driveagent_new`): the Agent-Driver dependencies (`torch`,
+  `nuscenes-devkit`, `numpy`) used by `agentdriver/evaluation`.
+
+See the upstream READMEs ([`Qwen3-VL/README.md`](Qwen3-VL/README.md),
+[`Agent-Driver/README.md`](Agent-Driver/README.md)) for the full dependency lists.
+
+### 2. Data
+
+- **nuScenes images.** Download the nuScenes `v1.0-trainval` set and point
+  `data_path` / `image_data_path` (placeholder `/path/to/nuscenes`) at the dataroot.
+- **Agent-Driver planner inputs & metric ground truth.** The `Agent-Driver/data/`
+  directory (planner inputs, `data/metrics` ground-truth pickles) is **not** bundled in
+  this release — see the [Agent-Driver instructions](Agent-Driver/README.md) to download
+  it. Generated fine-tuning files are recreated by the data-generation scripts above.
+  Evaluation expects `data/metrics/{uniad,stp3}_gt_seg.pkl`, `gt_traj.pkl`, and
+  `gt_traj_mask.pkl`.
+
+### 3. Model checkpoints
+
+Fine-tuned checkpoints are released on the HuggingFace Hub:
+
+| Checkpoint | Description | Link |
+|------------|-------------|------|
+| **No-reasoning (trajectory-only)** | Trajectory-prediction baseline trained with `nuscenes_trajonly.sh` — predicts waypoints directly, with no intermediate reasoning. | [stanfordasl/nuscenes-waypoints-model](https://huggingface.co/stanfordasl/nuscenes-waypoints-model) |
+| **Full Agent Driver Reasoning** | Checkpoint trained with the full reasoning traces for self-driving, estimated by the Agent Driver work. | [stanfordasl/nuscenes-full-reasoning-waypoints](https://huggingface.co/stanfordasl/nuscenes-full-reasoning-waypoints) |
+| **R&B-EnCoRe (iteration 1)** | Final checkpoint after the R&B-EnCoRe self-training loop (`nuscenes_rnbencore_it1.sh`), with the refined latent reasoning. | [stanfordasl/nuscenes-rnbencore-reasoning-waypoints](https://huggingface.co/stanfordasl/nuscenes-rnbencore-reasoning-waypoints) |
+
+Point `CHECKPOINT_PATH` in `inference_evaluate_nuscenes.sh` at the HuggingFace
+model ID (or a local download) to reproduce the reported metrics.
 
 ---
 
@@ -57,7 +99,9 @@ Code-Release/
 
 ---
 
-## Pipeline overview
+## Workflow & Usage
+
+The pipeline runs end-to-end: generate data → fine-tune → sample & refine (R&B-EnCoRe) → bootstrap → evaluate.
 
 ```
 data_samples_*.json                 (Agent-Driver planner inputs)
@@ -128,7 +172,9 @@ Fine-tune again on the resampled traces:
 sbatch scripts/nuscenes_rnbencore_it1.sh
 ```
 
-### 5. Inference and evaluation (`Qwen3-VL` → `Agent-Driver`)
+---
+
+## Evaluation
 
 The end-to-end evaluation script runs vLLM inference, parses trajectories, and computes
 nuScenes planning metrics:
@@ -146,47 +192,6 @@ Internally this:
 
 Set `CHECKPOINT_PATH` to a local checkpoint or a HuggingFace model ID and `EVAL_TAG` to a
 short label for the output files.
-
----
-
-## Setup
-
-### Environments
-
-The scripts reference several conda environments; create them to match your cluster:
-
-- **Training** (`qwen3-vl-new`): PyTorch, `transformers`, DeepSpeed, and the
-  Qwen3-VL fine-tuning dependencies in [`Qwen3-VL/qwen-vl-finetune`](Qwen3-VL/qwen-vl-finetune).
-- **Inference / R&B-EnCoRe sampling** (`qwen3_serve_new`): `vllm` plus the Qwen3-VL
-  multimodal processor stack.
-- **Evaluation** (`driveagent_new`): the Agent-Driver dependencies (`torch`,
-  `nuscenes-devkit`, `numpy`) used by `agentdriver/evaluation`.
-
-See the upstream READMEs ([`Qwen3-VL/README.md`](Qwen3-VL/README.md),
-[`Agent-Driver/README.md`](Agent-Driver/README.md)) for the full dependency lists.
-
-### Data
-
-- **nuScenes images.** Download the nuScenes `v1.0-trainval` set and point
-  `data_path` / `image_data_path` (placeholder `/path/to/nuscenes`) at the dataroot.
-- **Agent-Driver planner inputs & metric ground truth.** The `Agent-Driver/data/`
-  directory (planner inputs, `data/metrics` ground-truth pickles) is **not** bundled in
-  this release — see the [Agent-Driver instructions](Agent-Driver/README.md) to download
-  it. Generated fine-tuning files are recreated by the data-generation scripts above.
-  Evaluation expects `data/metrics/{uniad,stp3}_gt_seg.pkl`, `gt_traj.pkl`, and
-  `gt_traj_mask.pkl`.
-
-### Model checkpoints
-
-Fine-tuned checkpoints are released on the HuggingFace Hub:
-
-| Checkpoint | Description | Link |
-|------------|-------------|------|
-| **No-reasoning (trajectory-only)** | Trajectory-prediction baseline trained with `nuscenes_trajonly.sh` — predicts waypoints directly, with no intermediate reasoning. | [stanfordasl/nuscenes-waypoints-model](https://huggingface.co/stanfordasl/nuscenes-waypoints-model) |
-| **R&B-EnCoRe (iteration 1)** | Final checkpoint after the R&B-EnCoRe self-training loop (`nuscenes_rnbencore_it1.sh`), with the refined latent reasoning. | [stanfordasl/nuscenes-rnbencore-reasoning-waypoints](https://huggingface.co/stanfordasl/nuscenes-rnbencore-reasoning-waypoints) |
-
-Point `CHECKPOINT_PATH` in `inference_evaluate_nuscenes.sh` at the HuggingFace
-model ID (or a local download) to reproduce the reported metrics.
 
 ---
 
@@ -211,5 +216,3 @@ This release builds directly on two open-source projects, each retaining its ori
 
 - **Qwen3-VL** — see [`Qwen3-VL/LICENSE`](Qwen3-VL/LICENSE).
 - **Agent-Driver** — see [`Agent-Driver/LICENSE`](Agent-Driver/LICENSE).
-
-Please also cite the respective upstream works (Qwen3-VL and Agent-Driver) when using this code.
