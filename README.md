@@ -178,16 +178,14 @@ See the upstream READMEs ([`Qwen3-VL/README.md`](Qwen3-VL/README.md),
 
 ### Model checkpoints
 
-> 🚧 **Coming soon.** Fine-tuned checkpoints will be released on the HuggingFace Hub.
-
-We plan to release two checkpoints:
+Fine-tuned checkpoints are released on the HuggingFace Hub:
 
 | Checkpoint | Description | Link |
 |------------|-------------|------|
-| **No-reasoning (trajectory-only)** | Trajectory-prediction baseline trained with `nuscenes_trajonly.sh` — predicts waypoints directly, with no intermediate reasoning. | _coming soon_ |
-| **R&B-EnCoRe (iteration 1)** | Final checkpoint after the R&B-EnCoRe self-training loop (`nuscenes_rnbencore_it1.sh`), with the refined latent reasoning. | _coming soon_ |
+| **No-reasoning (trajectory-only)** | Trajectory-prediction baseline trained with `nuscenes_trajonly.sh` — predicts waypoints directly, with no intermediate reasoning. | [stanfordasl/nuscenes-waypoints-model](https://huggingface.co/stanfordasl/nuscenes-waypoints-model) |
+| **R&B-EnCoRe (iteration 1)** | Final checkpoint after the R&B-EnCoRe self-training loop (`nuscenes_rnbencore_it1.sh`), with the refined latent reasoning. | [stanfordasl/nuscenes-rnbencore-reasoning-waypoints](https://huggingface.co/stanfordasl/nuscenes-rnbencore-reasoning-waypoints) |
 
-Once released, point `CHECKPOINT_PATH` in `inference_evaluate_nuscenes.sh` at the HuggingFace
+Point `CHECKPOINT_PATH` in `inference_evaluate_nuscenes.sh` at the HuggingFace
 model ID (or a local download) to reproduce the reported metrics.
 
 ---
