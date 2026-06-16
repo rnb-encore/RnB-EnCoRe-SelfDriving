@@ -1,8 +1,9 @@
 # R&B-EnCoRe for Self-Driving Trajectory Planning
 
-## Self-Refining and Bootstrapping from Action-Predictive Embodied Reasoning for Autonomous Vehicle Trajectory Planning on nuScenes using Qwen3-VL
+[![arXiv](https://img.shields.io/badge/arXiv-2602.08167-b31b1b.svg)](https://arxiv.org/abs/2602.08167) [![Conference](https://img.shields.io/badge/RSS-2026-blue)](https://roboticsconference.org/)
 
-[![arXiv](https://img.shields.io/badge/arXiv-2602.08167-b31b1b.svg)](https://arxiv.org/abs/2602.08167)
+
+## Self-Refining and Bootstrapping from Action-Predictive Embodied Reasoning for Autonomous Vehicle Trajectory Planning on nuScenes using Qwen3-VL
 
 This repository implements **R&B-EnCoRe**, a self-refining and bootstrapping pipeline that learns *which* reasoning actually helps a **Qwen3-VL** vision-language model produce better autonomous-vehicle trajectories on the [nuScenes](https://www.nuscenes.org/) benchmark. The model takes a front-camera image plus ego state and produces a 3-second planned trajectory (6 waypoints at 0.5 s intervals), optionally accompanied by intermediate reasoning (perception, common-sense, experience, and chain-of-thought).
 
